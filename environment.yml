@@ -1,0 +1,20 @@
+name: rel_pose
+channels:
+  - rusty1s
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - torchvision
+  - pytorch=1.8.1
+  - cudatoolkit=11.1
+  - tensorboard
+  - scipy
+  - opencv
+  - tqdm
+  - matplotlib
+  - pip
+  - pip:
+    - timm==0.4.12
+    - lietorch==0.2
