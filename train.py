@@ -9,7 +9,7 @@ from src.data_readers.factory import dataset_factory
 
 import lietorch
 from lietorch import SE3
-from src.geom.losses import geodesic_loss
+from src.geom.losses import geodesic_loss, intrinsic_loss
 
 # network
 from src.model import ViTEss
@@ -149,13 +149,15 @@ def train(gpu, args):
 
                 if not is_training:
                     with torch.no_grad():
-                        poses_est = model(images, Gs, intrinsics=intrinsics)
+                        poses_est, K_est = model(images, Gs, intrinsics=intrinsics)
                         geo_loss_tr, geo_loss_rot, geo_metrics = geodesic_loss(Ps_out, poses_est, train_val=train_val)
+                        K_loss, K_metrics = intrinsic_loss(intrinsics, K_est, train_val=train_val)
                 else:
-                    poses_est = model(images, Gs, intrinsics=intrinsics)
+                    poses_est, K_est = model(images, Gs, intrinsics=intrinsics)
                     geo_loss_tr, geo_loss_rot, geo_metrics = geodesic_loss(Ps_out, poses_est, train_val=train_val)
+                    K_loss, K_metrics = intrinsic_loss(intrinsics, K_est, train_val=train_val)
 
-                    loss = args.w_tr * geo_loss_tr + args.w_rot * geo_loss_rot
+                    loss = args.w_tr * geo_loss_tr + args.w_rot * geo_loss_rot + args.w_K * K_loss
 
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -165,7 +167,8 @@ def train(gpu, args):
                     scheduler.step() 
                     train_steps += 1
                 
-                metrics.update(geo_metrics)                                    
+                metrics.update(geo_metrics)
+                metrics.update(K_metrics)
 
                 if gpu == 0 or args.no_ddp:
                     logger.push(metrics)
@@ -218,6 +221,7 @@ if __name__ == '__main__':
     # training
     parser.add_argument('--w_tr', type=float, default=10.0)
     parser.add_argument('--w_rot', type=float, default=10.0)
+    parser.add_argument('--w_K', type=float, default=2.0)
     parser.add_argument('--warmup', type=int, default=10000)
     parser.add_argument('--batch', type=int, default=1)
     parser.add_argument('--steps', type=int, default=120000)

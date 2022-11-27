@@ -133,7 +133,7 @@ if __name__ == '__main__':
         Gs = SE3(poses)
                     
         with torch.no_grad():
-            poses_est = model(images, Gs, intrinsics=intrinsics)
+            poses_est, K_est = model(images, Gs, intrinsics=intrinsics)
 
         predictions['camera']['gts']['tran'].append(dset['data'][i]['rel_pose']['position'])
         gt_rotation = dset['data'][i]['rel_pose']['rotation']

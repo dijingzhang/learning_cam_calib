@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.utils.data as data
 import torch.nn.functional as F
+import torchvision.transforms as T
 
 import csv
 import os
@@ -50,8 +51,24 @@ class RGBDDataset(data.Dataset):
             intrinsics = self.scene_info['intrinsics'][index]
 
             images = []
+            w2h_scale = 640 / 480
+            top = np.random.randint(0, 100)
+            cropped_height = np.random.randint(200, 480-top)
+            cropped_width = int(cropped_height * w2h_scale)
+            left = np.random.randint(0, 640-cropped_width)
+
+            to_PIL = T.ToPILImage()
+
             for i in range(2):
-                images.append(self.__class__.image_read(images_list[i]))
+                image = self.__class__.image_read(images_list[i])
+                # random crop
+                cropped_image = T.functional.crop(to_PIL(image), top, left, cropped_height, cropped_width)
+                # modify K
+                fx, fy, cx, cy = intrinsics[i]
+                crop_center_i, crop_center_j = top + cropped_height // 2, left + cropped_width // 2
+                cx, cy = cx + float(width - 1) / 2 - crop_center_j, cy + float(height - 1) / 2 - crop_center_i
+                intrinsics[i] = [fx, fy, cx, cy]
+                images.append(cropped_image)
 
             poses = np.stack(poses).astype(np.float32)
             intrinsics = np.stack(intrinsics).astype(np.float32)

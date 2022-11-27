@@ -27,7 +27,7 @@ class ViTEss(nn.Module):
         self.H2 = args.fc_hidden_size
 
         # layers
-        self.flatten = nn.Flatten(0,1)
+        self.flatten = nn.Flatten(0, 1)
         self.resnet = models.resnet18(pretrained=True) # this will be overridden if we are loading pretrained model
         self.resnet.fc = nn.Identity()
         self.extractor_final_conv = ResidualBlock(128, self.total_num_features, 'batch', kernel_size=extractor_final_conv_kernel_size)
@@ -99,14 +99,28 @@ class ViTEss(nn.Module):
 
     def update_intrinsics(self, input_shape, intrinsics):
         sizey, sizex = self.feature_resolution
-        scalex = sizex / input_shape[-1]
-        scaley = sizey / input_shape[-2]
+        scalex = input_shape[-1] / sizex
+        scaley = input_shape[-2] / sizey
         xidx = np.array([0,2])
         yidx = np.array([1,3])
         intrinsics[:,:,xidx] = scalex * intrinsics[:,:,xidx]
         intrinsics[:,:,yidx] = scaley * intrinsics[:,:,yidx]
-            
         return intrinsics
+
+    def estimate_intrinsics(self, features):
+        # features: B x 2 x H x H x D
+        intrinsic_estimator = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(2 * self.H * self.H * self.D, 5096),
+            nn.ReLU(),
+            nn.Linear(5096, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 4),
+        )
+        intrinsic = intrinsic_estimator(features).unsqueeze(1)
+        intrinsics = intrinsic.repeat((1, 2, 1))
+        return intrinsics
+
 
     def extract_features(self, images, intrinsics=None):
         """ run feeature extraction networks """
@@ -116,9 +130,6 @@ class ViTEss(nn.Module):
         mean = torch.as_tensor([0.485, 0.456, 0.406], device=images.device)
         std = torch.as_tensor([0.229, 0.224, 0.225], device=images.device)
         images = images.sub_(mean[:, None, None]).div_(std[:, None, None])
-
-        if intrinsics is not None:
-            intrinsics = self.update_intrinsics(images.shape, intrinsics)
 
         # for resnet, we need 224x224 images
         input_images = self.flatten(images)
@@ -140,6 +151,8 @@ class ViTEss(nn.Module):
             features = x[:,:self.total_num_features]
         features = features.permute([0,2,1])
 
+        if intrinsics is not None:
+            intrinsics = self.estimate_intrinsics(features)
         return features, intrinsics
     
     def normalize_preds(self, Gs, pose_preds, inference):
@@ -187,5 +200,8 @@ class ViTEss(nn.Module):
             pose_preds = self.pose_regressor(pooled_features.reshape([B, -1]))
         else:
             pose_preds = self.pose_regressor(features.reshape([B, -1]))
-        
-        return self.normalize_preds(Gs, pose_preds, inference)
+
+        # unscale intrinsics
+        intrinsics = self.update_intrinsics(images.shape, intrinsics)
+
+        return self.normalize_preds(Gs, pose_preds, inference), intrinsics

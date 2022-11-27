@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 def geodesic_loss(Ps, Gs, train_val='train'):
     """ Loss function for training network """
@@ -19,3 +20,13 @@ def geodesic_loss(Ps, Gs, train_val='train'):
     }
 
     return geodesic_loss_tr, geodesic_loss_rot, metrics
+
+def intrinsic_loss(K_gt, K_est, train_val='train'):
+    mse_loss = nn.MSELoss()
+    loss = mse_loss(K_est, K_gt)
+    metrics = {
+        train_val+'_intrinsic_loss': (loss).detach().item(),
+    }
+    return loss, metrics
+
+

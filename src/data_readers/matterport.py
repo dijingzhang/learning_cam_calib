@@ -53,7 +53,7 @@ class Matterport(RGBDDataset):
                 rel_pose[3:] *= -1
             poses = np.vstack([base_pose, rel_pose])
 
-            intrinsics = np.array([[517.97, 517.97, 320, 240], [517.97, 517.97, 320, 240]]) # 480 x 640 imgs
+            intrinsics = np.array([[517.97, 517.97, 320, 240], [517.97, 517.97, 320, 240]]) # 480 x 640 imgs3
 
             scene_info['images'].append(images)
             scene_info['poses'] += [poses]
